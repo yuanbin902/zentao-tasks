@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>前端开发 - 未完成任务明细</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">
+</script>
+<style>
+  :root {
+    --bg: #f5f6fa;
+    --card-bg: #fff;
+    --text: #2d3436;
+    --text-secondary: #636e72;
+    --border: #e1e4e8;
+    --shadow: 0 1px 3px rgba(0,0,0,.08);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .container { max-width: 1280px; margin: 0 auto; padding: 20px 16px; }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .header h1 { font-size: 20px; font-weight: 700; }
+  .header .info { font-size: 12px; color: var(--text-secondary); }
+  .back-link { font-size: 13px; color: #4a90d9; text-decoration: none; }
+  .back-link:hover { text-decoration: underline; }
+
+  /* KPI cards */
+  .kpi-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .kpi-card {
+    flex: 1;
+    min-width: 100px;
+    background: var(--card-bg);
+    border-radius: 10px;
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+    text-align: center;
+  }
+  .kpi-card .num { font-size: 26px; font-weight: 700; }
+  .kpi-card .label { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  .kpi-card.total .num { color: #2d3436; }
+  .kpi-card.wait .num { color: #636e72; }
+  .kpi-card.doing .num { color: #4a90d9; }
+  .kpi-card.delay .num { color: #e74c3c; }
+  .kpi-card.assignees .num { color: #27ae60; }
+
+  /* Charts */
+  .chart-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .chart-box {
+    background: var(--card-bg);
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+  }
+  .chart-box h3 { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: var(--text-secondary); }
+  .chart-box canvas { max-height: 280px; }
+
+  /* Person accordion */
+  .person-section { margin-bottom: 8px; }
+  .person-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+    box-shadow: var(--shadow);
+    transition: background .15s;
+    gap: 8px;
+  }
+  .person-summary:hover { background: #f8f9fb; }
+  .person-summary .name { font-weight: 600; font-size: 15px; }
+  .person-summary .stats-line {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .person-summary .toggle { font-size: 12px; color: var(--text-secondary); }
+  .person-detail { display: none; }
+
+  /* Table */
+  .table-wrap {
+    overflow-x: auto;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    box-shadow: var(--shadow);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    min-width: 960px;
+  }
+  thead th {
+    background: #f8f9fb;
+    padding: 8px 6px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+  }
+  tbody td {
+    padding: 7px 6px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tbody tr:hover { background: #fafbfc; }
+  .cell-id { color: #4a90d9; white-space: nowrap; }
+  .cell-name { max-width: 280px; word-break: break-all; }
+  .cell-status { white-space: nowrap; }
+  .cell-pri { white-space: nowrap; text-align: center; }
+  .cell-num { text-align: right; white-space: nowrap; }
+  .cell-date { white-space: nowrap; }
+
+  .badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .badge-wait { background: #eee; color: #636e72; }
+  .badge-doing { background: #dbeafe; color: #2563eb; }
+  .badge-pause { background: #fef3c7; color: #d97706; }
+  .badge-delay { background: #fee2e2; color: #dc2626; }
+  .badge-pri1 { background: #fee2e2; color: #dc2626; font-weight: 700; }
+  .badge-pri2 { background: #fff7ed; color: #ea580c; }
+  .badge-pri3 { background: #f0f4ff; color: #636e72; }
+  .badge-pri4 { background: #f8fafc; color: #94a3b8; }
+
+  .footer {
+    text-align: center;
+    padding: 20px 0 0;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div>
+      <h1>🎨 前端开发 - 未完成任务明细</h1>
+      <div class="info">自动生成于 2026-05-22 11:50:56</div>
+    </div>
+    <a href="index.html" class="back-link">&larr; 返回首页</a>
+  </div>
+
+  <!-- KPI 卡片 -->
+  <div class="kpi-row">
+    <div class="kpi-card total"><div class="num">50</div><div class="label">任务总数</div></div>
+    <div class="kpi-card wait"><div class="num">33</div><div class="label">待处理</div></div>
+    <div class="kpi-card doing"><div class="num">17</div><div class="label">进行中</div></div>
+    <div class="kpi-card delay"><div class="num">0</div><div class="label">延期</div></div>
+    <div class="kpi-card assignees"><div class="num">5</div><div class="label">负责人</div></div>
+    <div class="kpi-card"><div class="num">267.2</div><div class="label">预估(h)</div></div>
+    <div class="kpi-card"><div class="num">0.0</div><div class="label">消耗(h)</div></div>
+    <div class="kpi-card"><div class="num">267.2</div><div class="label">剩余(h)</div></div>
+  </div>
+
+  <!-- 图表 -->
+  <div class="chart-row">
+    <div class="chart-box">
+      <h3>&#x1F464; 负责人任务分布 (Top15)</h3>
+      <canvas id="chartAssignee"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>&#x1F4CA; 任务状态分布</h3>
+      <canvas id="chartStatus"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>&#x26A0;&#xFE0F; 优先级分布</h3>
+      <canvas id="chartPriority"></canvas>
+    </div>
+  </div>
+
+  <!-- 按人员明细 -->
+  <h3 style="margin-bottom:12px;font-size:15px;">&#x1F4CC; 按负责人明细（点击展开）</h3>
+  <div id="accordion">
+    
+    <div class="person-section">
+      <div class="person-summary" onclick="togglePerson(this)">
+        <span class="name">刘竟威</span>
+        <span class="stats-line">
+          共<strong>19</strong>个
+          待处理<strong>18</strong>
+          进行中<strong>1</strong>
+          延期<strong>0</strong>
+          预估<strong>113.9h</strong>
+          消耗<strong>0.0h</strong>
+          剩余<strong>113.9h</strong>
+        </span>
+        <span class="toggle">&#x25BC;</span>
+      </div>
+      <div class="person-detail">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>任务名称</th>
+                <th>状态</th>
+                <th>优先级</th>
+                <th>执行</th>
+                <th>截止日期</th>
+                <th>延期</th>
+                <th>预估h</th>
+                <th>消耗h</th>
+                <th>剩余h</th>
+              </tr>
+            </thead>
+            <tbody>
+              
+              <tr>
+                <td class="cell-id">283122</td>
+                <td class="cell-name">【前端开发】OC875-新增OTO以旧换新订单标识-test</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri1">1-紧急</span>
+                </td>
+                <td class="cell-name">【2026】OMS_260521test迭代</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">283509</td>
+                <td class="cell-name">【前端开发】OB810-网批4.0货权转移单支持使用订单冲销功能</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri1">1-紧急</span>
+                </td>
+                <td class="cell-name">OMS-260521迭代test002</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">283466</td>
+                <td class="cell-name">【前端开发】CW921-调拨单获取ERP下达数</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri1">1-紧急</span>
+                </td>
+                <td class="cell-name">OMS-260521迭代test002</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">283377</td>
+                <td class="cell-name">【前端开发】OC875-新增OTO以旧换新订单标识</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri1">1-紧急</span>
+                </td>
+                <td class="cell-name">OMS-260521迭代test002</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">278562</td>
+                <td class="cell-name">【前端开发】OB791/800/801-网批直发平台仓订单正逆向流程需求</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri2">2-高</span>
+                </td>
+                <td class="cell-name">OMS-260530迭代</td>
+                <td class="cell-date">2026-05-26</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">283485</td>
+                <td class="cell-name">【前端开发】OB791/800/801-网批直发平台仓订单正逆向流程需求</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri2">2-高</span>
+                </td>
+                <td class="cell-name">OMS-260521迭代test002</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">283475</td>
+                <td class="cell-name">【前端开发】OB823-网批经销商订单新增自提送达信息</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri2">2-高</span>
+                </td>
+                <td class="cell-name">OMS-260521迭代test002</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">283441</td>
+                <td class="cell-name">【前端开发】CW929-订单优先寻源</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri2">2-高</span>
+                </td>
+                <td class="cell-name">OMS-260521迭代test002</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">278444</td>
+                <td class="cell-name">【前端开发】OB687-采销订单查询条件改为可配置选项</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">OMS-260530迭代</td>
+                <td class="cell-date">2026-05-26</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">16.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">16.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">278785</td>
+                <td class="cell-name">【前端开发】HCH530D-生产任务调整</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">HCH-260530迭代版本</td>
+                <td class="cell-date">2026-05-26</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">16.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">16.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">283585</td>
+                <td class="cell-name">【前端开发】CW923-调拨单勾选单据导出调拨明细异常</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">OMS-260521迭代test002</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">283575</td>
+                <td class="cell-name">【前端开发】CW919-金湾基地生产单补充信息缺省的监听并发送邮件</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">OMS-260521迭代test002</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">283559</td>
+                <td class="cell-name">【前端开发】CW902-出口订单的齐套、库位分布报表查询</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">OMS-260521迭代test002</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">283532</td>
+                <td class="cell-name">【前端开发】OB815-调拨单中物料编码为C0000011的物料编码不更新库存</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">OMS-260521迭代test002</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">283521</td>
+                <td class="cell-name">【前端开发】OB833-生产物资调拨获取箱信息流程变更</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">OMS-260521迭代test002</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">283432</td>
+                <td class="cell-name">【前端开发】OB687-采销订单查询条件改为可配置选项</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">OMS-260521迭代test002</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">283423</td>
+                <td class="cell-name">【前端开发】OB825-接收集采订单销售主体</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">OMS-260521迭代test002</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">283414</td>
+                <td class="cell-name">【前端开发】OB789-采销订单锁定功能增加锁定原因</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">OMS-260521迭代test002</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">283405</td>
+                <td class="cell-name">【前端开发】OB767-优化登录页面密码隐藏展示功能</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">OMS-260521迭代test002</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">8.3</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">8.3</td>
+              </tr>
+              
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    
+    <div class="person-section">
+      <div class="person-summary" onclick="togglePerson(this)">
+        <span class="name">袁兴亮</span>
+        <span class="stats-line">
+          共<strong>15</strong>个
+          待处理<strong>0</strong>
+          进行中<strong>15</strong>
+          延期<strong>0</strong>
+          预估<strong>76.0h</strong>
+          消耗<strong>0.0h</strong>
+          剩余<strong>76.0h</strong>
+        </span>
+        <span class="toggle">&#x25BC;</span>
+      </div>
+      <div class="person-detail">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>任务名称</th>
+                <th>状态</th>
+                <th>优先级</th>
+                <th>执行</th>
+                <th>截止日期</th>
+                <th>延期</th>
+                <th>预估h</th>
+                <th>消耗h</th>
+                <th>剩余h</th>
+              </tr>
+            </thead>
+            <tbody>
+              
+              <tr>
+                <td class="cell-id">278940</td>
+                <td class="cell-name">【前端】销司库存管理—查询库存详情</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_销司订单履约专项</td>
+                <td class="cell-date">2026-05-25</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">3.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">3.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">278939</td>
+                <td class="cell-name">【前端】销司库存管理—查看流水</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_销司订单履约专项</td>
+                <td class="cell-date">2026-05-25</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">278938</td>
+                <td class="cell-name">【前端】销司库存管理—导出</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_销司订单履约专项</td>
+                <td class="cell-date">2026-05-25</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">3.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">3.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">278937</td>
+                <td class="cell-name">【前端】销司库存管理—同步OWMS库存</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_销司订单履约专项</td>
+                <td class="cell-date">2026-05-25</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">276273</td>
+                <td class="cell-name">【前端开发】配件交易订单-批量取消发货计划单</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_销司订单履约专项</td>
+                <td class="cell-date">2026-05-25</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">3.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">3.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">276272</td>
+                <td class="cell-name">【前端开发】配件交易订单-取消发货计划单</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_销司订单履约专项</td>
+                <td class="cell-date">2026-05-25</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">276270</td>
+                <td class="cell-name">【前端开发】配件交易订单-更改订单状态</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_销司订单履约专项</td>
+                <td class="cell-date">2026-05-25</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">3.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">3.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">276269</td>
+                <td class="cell-name">【前端开发】配件交易订单-批量订单发货</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_销司订单履约专项</td>
+                <td class="cell-date">2026-05-25</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">3.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">3.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">276268</td>
+                <td class="cell-name">【前端开发】配件交易订单-订单发货</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_销司订单履约专项</td>
+                <td class="cell-date">2026-05-25</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">6.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">6.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">276267</td>
+                <td class="cell-name">【前端开发】配件交易订单-物流</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_销司订单履约专项</td>
+                <td class="cell-date">2026-05-25</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">5.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">5.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">281858</td>
+                <td class="cell-name">【前端】OC884-抖音新增自营订单标识以及相应逻辑调整-前端开发</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">OMS-260530迭代</td>
+                <td class="cell-date">2026-05-27</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">281945</td>
+                <td class="cell-name">【前端】OC879-天猫仓配订单推送优化，已完成订单仅支持强制推送标准单</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">OMS-260530迭代</td>
+                <td class="cell-date">2026-05-29</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">2.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">2.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">280865</td>
+                <td class="cell-name">【前端】生产月计划-调整申请</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">HCH-260530迭代版本</td>
+                <td class="cell-date">2026-05-29</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">6.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">6.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">280127</td>
+                <td class="cell-name">【前端】计划调整明细</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">HCH-260530迭代版本</td>
+                <td class="cell-date">2026-05-29</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">10.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">10.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">280111</td>
+                <td class="cell-name">【前端】生产计划调整单</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">HCH-260530迭代版本</td>
+                <td class="cell-date">2026-05-29</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">16.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">16.0</td>
+              </tr>
+              
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    
+    <div class="person-section">
+      <div class="person-summary" onclick="togglePerson(this)">
+        <span class="name">颜子健</span>
+        <span class="stats-line">
+          共<strong>12</strong>个
+          待处理<strong>12</strong>
+          进行中<strong>0</strong>
+          延期<strong>0</strong>
+          预估<strong>58.9h</strong>
+          消耗<strong>0.0h</strong>
+          剩余<strong>58.9h</strong>
+        </span>
+        <span class="toggle">&#x25BC;</span>
+      </div>
+      <div class="person-detail">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>任务名称</th>
+                <th>状态</th>
+                <th>优先级</th>
+                <th>执行</th>
+                <th>截止日期</th>
+                <th>延期</th>
+                <th>预估h</th>
+                <th>消耗h</th>
+                <th>剩余h</th>
+              </tr>
+            </thead>
+            <tbody>
+              
+              <tr>
+                <td class="cell-id">282772</td>
+                <td class="cell-name">【前端开发】CW921-调拨单获取ERP下达数-test</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri1">1-紧急</span>
+                </td>
+                <td class="cell-name">【2026】OMS_260521test迭代</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">282734</td>
+                <td class="cell-name">【前端开发】OB819-网批4.0销司货权转移及大额订单支持取消货权转移-test</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri1">1-紧急</span>
+                </td>
+                <td class="cell-name">【2026】OMS_260521test迭代</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">282716</td>
+                <td class="cell-name">【前端开发】OB810-网批4.0货权转移单支持使用订单冲销功能-test</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri1">1-紧急</span>
+                </td>
+                <td class="cell-name">【2026】OMS_260521test迭代</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">282796</td>
+                <td class="cell-name">【前端开发】CW929-订单优先寻源-test</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri2">2-高</span>
+                </td>
+                <td class="cell-name">【2026】OMS_260521test迭代</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">282763</td>
+                <td class="cell-name">【前端开发】OB823-网批经销商订单新增自提送达信息-test</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri2">2-高</span>
+                </td>
+                <td class="cell-name">【2026】OMS_260521test迭代</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">282754</td>
+                <td class="cell-name">【前端开发】OB791-网批直发平台仓订单正逆向流程需求-test</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri2">2-高</span>
+                </td>
+                <td class="cell-name">【2026】OMS_260521test迭代</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">282725</td>
+                <td class="cell-name">【前端开发】OB777-网批经销商订单按业务类型区分家用及商用类型-test</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri2">2-高</span>
+                </td>
+                <td class="cell-name">【2026】OMS_260521test迭代</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">282830</td>
+                <td class="cell-name">【前端开发】OB767-优化登录页面密码隐藏展示功能-test</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_260521test迭代</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">8.3</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">8.3</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">282823</td>
+                <td class="cell-name">【前端开发】OB789-采销订单锁定功能增加锁定原因-test</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_260521test迭代</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">282814</td>
+                <td class="cell-name">【前端开发】OB825-接收集采订单销售主体-test</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_260521test迭代</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">282805</td>
+                <td class="cell-name">【前端开发】OB687-采销订单查询条件改为可配置选项-test</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_260521test迭代</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">282707</td>
+                <td class="cell-name">【前端开发】OB833-生产物资调拨获取箱信息流程变更-test</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_260521test迭代</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    
+    <div class="person-section">
+      <div class="person-summary" onclick="togglePerson(this)">
+        <span class="name">覃子毅</span>
+        <span class="stats-line">
+          共<strong>3</strong>个
+          待处理<strong>3</strong>
+          进行中<strong>0</strong>
+          延期<strong>0</strong>
+          预估<strong>13.8h</strong>
+          消耗<strong>0.0h</strong>
+          剩余<strong>13.8h</strong>
+        </span>
+        <span class="toggle">&#x25BC;</span>
+      </div>
+      <div class="person-detail">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>任务名称</th>
+                <th>状态</th>
+                <th>优先级</th>
+                <th>执行</th>
+                <th>截止日期</th>
+                <th>延期</th>
+                <th>预估h</th>
+                <th>消耗h</th>
+                <th>剩余h</th>
+              </tr>
+            </thead>
+            <tbody>
+              
+              <tr>
+                <td class="cell-id">283042</td>
+                <td class="cell-name">【前端开发】OC881-OTO国补订单新增备注信息69码-test</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri1">1-紧急</span>
+                </td>
+                <td class="cell-name">【2026】OMS_260521test迭代</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">282996</td>
+                <td class="cell-name">【前端开发】OC876-寻源策略筛选策略适配oto国补-test</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri1">1-紧急</span>
+                </td>
+                <td class="cell-name">【2026】OMS_260521test迭代</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">283088</td>
+                <td class="cell-name">【前端开发】OC880-发票历史记录新增导出功能-test</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_260521test迭代</td>
+                <td class="cell-date">2026-06-04</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    
+    <div class="person-section">
+      <div class="person-summary" onclick="togglePerson(this)">
+        <span class="name">蒋相坤</span>
+        <span class="stats-line">
+          共<strong>1</strong>个
+          待处理<strong>0</strong>
+          进行中<strong>1</strong>
+          延期<strong>0</strong>
+          预估<strong>4.6h</strong>
+          消耗<strong>0.0h</strong>
+          剩余<strong>4.6h</strong>
+        </span>
+        <span class="toggle">&#x25BC;</span>
+      </div>
+      <div class="person-detail">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>任务名称</th>
+                <th>状态</th>
+                <th>优先级</th>
+                <th>执行</th>
+                <th>截止日期</th>
+                <th>延期</th>
+                <th>预估h</th>
+                <th>消耗h</th>
+                <th>剩余h</th>
+              </tr>
+            </thead>
+            <tbody>
+              
+              <tr>
+                <td class="cell-id">278462</td>
+                <td class="cell-name">【前端开发】OB789-采销订单锁定功能增加锁定原因</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-doing">进行中</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">OMS-260530迭代</td>
+                <td class="cell-date">2026-05-26</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">4.6</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">4.6</td>
+              </tr>
+              
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+
+  <div class="footer">
+    <p>数据来源：禅道管理系统 | 自动生成于 2026-05-22 11:50:56</p>
+  </div>
+</div>
+
+<!-- Accordion toggle -->
+<script>
+function togglePerson(summary) {
+  var detail = summary.nextElementSibling;
+  var toggle = summary.querySelector('.toggle');
+  if (detail.style.display === 'block') {
+    detail.style.display = 'none';
+    toggle.innerHTML = '&#x25BC;';
+  } else {
+    detail.style.display = 'block';
+    toggle.innerHTML = '&#x25B2;';
+  }
+}
+</script>
+
+<!-- Charts -->
+<script>
+(function() {
+  var colors = ['#4a90d9','#27ae60','#e67e22','#e74c3c','#8e44ad','#16a085',
+                '#2c3e50','#d35400','#2980b9','#c0392b','#7f8c8d','#f39c12',
+                '#1abc9c','#9b59b6','#34495e'];
+
+  // 1. 负责人任务分布
+  var assigneeData = {"labels": ["刘竟威", "袁兴亮", "颜子健", "覃子毅", "蒋相坤"], "values": [19, 15, 12, 3, 1]};
+  new Chart(document.getElementById('chartAssignee'), {
+    type: 'bar',
+    data: {
+      labels: assigneeData.labels,
+      datasets: [{
+        label: '任务数',
+        data: assigneeData.values,
+        backgroundColor: colors.slice(0, assigneeData.labels.length),
+        borderRadius: 4
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        x: { beginAtZero: true, ticks: { stepSize: 5 } }
+      }
+    }
+  });
+
+  // 2. 任务状态分布
+  var statusData = {"labels": ["待处理", "进行中"], "values": [33, 17]};
+  new Chart(document.getElementById('chartStatus'), {
+    type: 'doughnut',
+    data: {
+      labels: statusData.labels,
+      datasets: [{
+        data: statusData.values,
+        backgroundColor: ['#b0bec5','#4a90d9','#e74c3c','#f1c40f']
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom' }
+      }
+    }
+  });
+
+  // 3. 优先级分布
+  var priData = {"labels": ["1-紧急", "2-高", "3-中"], "values": [9, 8, 33]};
+  new Chart(document.getElementById('chartPriority'), {
+    type: 'doughnut',
+    data: {
+      labels: priData.labels,
+      datasets: [{
+        data: priData.values,
+        backgroundColor: ['#e74c3c','#e67e22','#4a90d9','#b0bec5']
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom' }
+      }
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
