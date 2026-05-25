@@ -177,21 +177,21 @@
   <div class="header">
     <div>
       <h1>⚙️ 后端开发 - 未完成任务明细</h1>
-      <div class="info">自动生成于 2026-05-25 14:03:47</div>
+      <div class="info">自动生成于 2026-05-25 14:10:16</div>
     </div>
     <a href="index.html" class="back-link">&larr; 返回首页</a>
   </div>
 
   <!-- KPI 卡片 -->
   <div class="kpi-row">
-    <div class="kpi-card total"><div class="num">40</div><div class="label">任务总数</div></div>
-    <div class="kpi-card wait"><div class="num">19</div><div class="label">待处理</div></div>
+    <div class="kpi-card total"><div class="num">41</div><div class="label">任务总数</div></div>
+    <div class="kpi-card wait"><div class="num">20</div><div class="label">待处理</div></div>
     <div class="kpi-card doing"><div class="num">21</div><div class="label">进行中</div></div>
     <div class="kpi-card delay"><div class="num">10</div><div class="label">延期</div></div>
     <div class="kpi-card assignees"><div class="num">11</div><div class="label">负责人</div></div>
-    <div class="kpi-card"><div class="num">483.6</div><div class="label">预估(h)</div></div>
+    <div class="kpi-card"><div class="num">499.6</div><div class="label">预估(h)</div></div>
     <div class="kpi-card"><div class="num">76.5</div><div class="label">消耗(h)</div></div>
-    <div class="kpi-card"><div class="num">385.0</div><div class="label">剩余(h)</div></div>
+    <div class="kpi-card"><div class="num">401.0</div><div class="label">剩余(h)</div></div>
   </div>
 
   <!-- 图表 -->
@@ -447,13 +447,13 @@
       <div class="person-summary" onclick="togglePerson(this)">
         <span class="name">王思聪</span>
         <span class="stats-line">
-          共<strong>5</strong>个
-          待处理<strong>3</strong>
+          共<strong>6</strong>个
+          待处理<strong>4</strong>
           进行中<strong>2</strong>
           延期<strong>0</strong>
-          预估<strong>92.7h</strong>
+          预估<strong>108.7h</strong>
           消耗<strong>0.0h</strong>
-          剩余<strong>92.7h</strong>
+          剩余<strong>108.7h</strong>
         </span>
         <span class="toggle">&#x25BC;</span>
       </div>
@@ -517,6 +517,25 @@
               <tr>
                 <td class="cell-id">278085</td>
                 <td class="cell-name">【后端】2-新增配件销司交易订单接入OMS履约-发货流程-提测响应</td>
+                <td class="cell-status">
+                  
+                  <span class="badge badge-wait">待处理</span>
+                  
+                </td>
+                <td class="cell-pri">
+                  <span class="badge badge-pri3">3-中</span>
+                </td>
+                <td class="cell-name">【2026】OMS_销司订单履约专项</td>
+                <td class="cell-date">2026-05-30</td>
+                <td class="cell-num">0</td>
+                <td class="cell-num">16.0</td>
+                <td class="cell-num">0.0</td>
+                <td class="cell-num">16.0</td>
+              </tr>
+              
+              <tr>
+                <td class="cell-id">278084</td>
+                <td class="cell-name">【接口联调】2-新增配件销司交易订单接入OMS履约-发货流程-后端联调</td>
                 <td class="cell-status">
                   
                   <span class="badge badge-wait">待处理</span>
@@ -1406,7 +1425,7 @@
   </div>
 
   <div class="footer">
-    <p>数据来源：禅道管理系统 | 自动生成于 2026-05-25 14:03:47</p>
+    <p>数据来源：禅道管理系统 | 自动生成于 2026-05-25 14:10:16</p>
   </div>
 </div>
 
@@ -1433,7 +1452,7 @@ function togglePerson(summary) {
                 '#1abc9c','#9b59b6','#34495e'];
 
   // 1. 负责人任务分布
-  var assigneeData = {"labels": ["覃子毅", "王思聪", "陈文浩", "叶秀发", "邓晔", "颜子健", "曾小勇", "周继文", "杨上波", "易永伟", "未指派"], "values": [10, 5, 4, 4, 4, 3, 3, 3, 2, 1, 1]};
+  var assigneeData = {"labels": ["覃子毅", "王思聪", "陈文浩", "叶秀发", "邓晔", "颜子健", "曾小勇", "周继文", "杨上波", "易永伟", "未指派"], "values": [10, 6, 4, 4, 4, 3, 3, 3, 2, 1, 1]};
   new Chart(document.getElementById('chartAssignee'), {
     type: 'bar',
     data: {
@@ -1458,7 +1477,7 @@ function togglePerson(summary) {
   });
 
   // 2. 任务状态分布
-  var statusData = {"labels": ["进行中", "待处理"], "values": [21, 19]};
+  var statusData = {"labels": ["进行中", "待处理"], "values": [21, 20]};
   new Chart(document.getElementById('chartStatus'), {
     type: 'doughnut',
     data: {
@@ -1477,7 +1496,7 @@ function togglePerson(summary) {
   });
 
   // 3. 优先级分布
-  var priData = {"labels": ["2-高", "3-中"], "values": [5, 35]};
+  var priData = {"labels": ["2-高", "3-中"], "values": [5, 36]};
   new Chart(document.getElementById('chartPriority'), {
     type: 'doughnut',
     data: {
